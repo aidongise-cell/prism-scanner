@@ -1,0 +1,20 @@
+{
+  "name": "prism-scanner",
+  "version": "0.1.0",
+  "description": "Security scanner for AI Agent skills, plugins, and MCP servers",
+  "keywords": ["security", "scanner", "ai-agent", "skill", "plugin", "mcp", "supply-chain"],
+  "homepage": "https://github.com/prismlab/prism-scanner",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prismlab/prism-scanner.git"
+  },
+  "license": "Apache-2.0",
+  "bin": {
+    "prism-scanner": "./bin/prism-scanner.js",
+    "prism": "./bin/prism-scanner.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "files": ["bin/", "README.md", "LICENSE"]
+}

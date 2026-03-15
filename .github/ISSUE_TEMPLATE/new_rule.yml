@@ -1,0 +1,67 @@
+name: New Rule Proposal
+description: Propose a new detection rule for Prism Scanner
+title: "[Rule Proposal] "
+labels: ["new-rule"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a new detection rule. Please provide as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Rule Description
+      description: What should this rule detect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_it_detects
+    attributes:
+      label: What It Detects
+      description: Describe the specific malicious or risky pattern.
+    validations:
+      required: true
+
+  - type: textarea
+    id: importance
+    attributes:
+      label: Why It's Important
+      description: Explain the security risk if this pattern goes undetected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: example_code
+    attributes:
+      label: Example Malicious Code
+      description: Provide a code sample that this rule should flag.
+      render: python
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suggested Severity
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Which Engine
+      description: Which scan engine should handle this rule?
+      options:
+        - pattern (regex-based)
+        - ast (AST analysis)
+        - semantic (cross-function/file analysis)
+        - unsure
+    validations:
+      required: true

@@ -1,0 +1,135 @@
+# S-rules: Dangerous API and permission patterns
+# Used by the AST engine for behavioral analysis.
+
+version: "1.0"
+updated: "2026-03-15"
+
+# S1: Dangerous function calls (by language)
+dangerous_calls:
+  python:
+    critical:
+      - name: "os.system"
+        description: "Shell command execution"
+        references: ["CWE-78"]
+      - name: "subprocess.call"
+        description: "Subprocess execution"
+        references: ["CWE-78"]
+      - name: "subprocess.Popen"
+        description: "Subprocess execution"
+        references: ["CWE-78"]
+      - name: "subprocess.run"
+        description: "Subprocess execution"
+        references: ["CWE-78"]
+      - name: "eval"
+        description: "Dynamic code evaluation"
+        references: ["CWE-95"]
+      - name: "exec"
+        description: "Dynamic code execution"
+        references: ["CWE-95"]
+      - name: "compile"
+        description: "Dynamic code compilation"
+        references: ["CWE-95"]
+      - name: "__import__"
+        description: "Dynamic module import"
+        references: ["CWE-94"]
+
+    high:
+      - name: "ctypes.CDLL"
+        description: "Native library loading"
+      - name: "ctypes.cdll.LoadLibrary"
+        description: "Native library loading"
+      - name: "pickle.loads"
+        description: "Deserialization (arbitrary code execution)"
+        references: ["CWE-502"]
+      - name: "yaml.load"
+        description: "Unsafe YAML deserialization (use safe_load)"
+        references: ["CWE-502"]
+      - name: "marshal.loads"
+        description: "Unsafe deserialization"
+        references: ["CWE-502"]
+
+  javascript:
+    critical:
+      - name: "eval"
+        description: "Dynamic code evaluation"
+        references: ["CWE-95"]
+      - name: "Function"
+        description: "Dynamic function constructor"
+        references: ["CWE-95"]
+      - name: "child_process.exec"
+        description: "Shell command execution"
+        references: ["CWE-78"]
+      - name: "child_process.execSync"
+        description: "Shell command execution (sync)"
+        references: ["CWE-78"]
+      - name: "child_process.spawn"
+        description: "Process spawning"
+        references: ["CWE-78"]
+
+    high:
+      - name: "vm.runInNewContext"
+        description: "Code execution in VM context"
+      - name: "require('child_process')"
+        description: "Child process module import"
+      - name: "process.dlopen"
+        description: "Native addon loading"
+
+# S2: File system access patterns
+filesystem_access:
+  sensitive_paths:
+    critical:
+      - "/etc/shadow"
+      - "/etc/sudoers"
+      - "~/.ssh/id_rsa"
+      - "~/.ssh/id_ed25519"
+      - "~/.aws/credentials"
+      - "~/.gnupg/"
+    high:
+      - "/etc/passwd"
+      - "/etc/hosts"
+      - "~/.bashrc"
+      - "~/.zshrc"
+      - "~/.zshenv"
+      - "~/.profile"
+      - "~/.netrc"
+      - "~/.gitconfig"
+    medium:
+      - "/tmp/"
+      - "/dev/shm/"
+      - "~/.config/"
+
+# S3: Network access patterns
+network_access:
+  # Functions that perform network I/O
+  functions:
+    python:
+      - "requests.get"
+      - "requests.post"
+      - "urllib.request.urlopen"
+      - "httpx.get"
+      - "httpx.post"
+      - "aiohttp.ClientSession"
+      - "socket.connect"
+      - "socket.create_connection"
+    javascript:
+      - "fetch"
+      - "axios.get"
+      - "axios.post"
+      - "http.request"
+      - "https.request"
+      - "net.connect"
+      - "XMLHttpRequest"
+
+# S4: Environment variable access
+env_access:
+  # Patterns that read environment variables
+  sensitive_vars:
+    - "AWS_ACCESS_KEY_ID"
+    - "AWS_SECRET_ACCESS_KEY"
+    - "GITHUB_TOKEN"
+    - "OPENAI_API_KEY"
+    - "ANTHROPIC_API_KEY"
+    - "DATABASE_URL"
+    - "STRIPE_SECRET_KEY"
+    - "SLACK_TOKEN"
+    - "SSH_AUTH_SOCK"

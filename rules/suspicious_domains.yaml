@@ -1,0 +1,63 @@
+# P4/P8: Suspicious domains and IOC database
+# Used by pattern engine for domain reputation checks.
+
+version: "1.0"
+updated: "2026-03-15"
+
+# Dynamic DNS providers commonly abused for C2
+dynamic_dns:
+  - "*.ngrok.io"
+  - "*.ngrok-free.app"
+  - "*.duckdns.org"
+  - "*.no-ip.com"
+  - "*.ddns.net"
+  - "*.serveo.net"
+  - "*.localhost.run"
+  - "*.loca.lt"
+  - "*.portmap.io"
+  - "*.pagekite.me"
+  - "*.localtunnel.me"
+  - "*.telebit.cloud"
+
+# Suspicious TLDs frequently used in phishing/malware
+suspicious_tlds:
+  - ".tk"
+  - ".ml"
+  - ".ga"
+  - ".cf"
+  - ".gq"
+  - ".xyz"
+  - ".top"
+  - ".buzz"
+  - ".click"
+  - ".loan"
+  - ".work"
+  - ".racing"
+  - ".download"
+
+# Known C2 infrastructure patterns
+c2_patterns:
+  - pattern: "pastebin\\.com/raw/"
+    severity: high
+    description: "Pastebin raw URL (common C2 payload host)"
+  - pattern: "raw\\.githubusercontent\\.com.*\\.sh"
+    severity: medium
+    description: "GitHub raw shell script download"
+  - pattern: "transfer\\.sh"
+    severity: high
+    description: "transfer.sh file sharing (common exfil target)"
+  - pattern: "webhook\\.site"
+    severity: high
+    description: "webhook.site (common exfil endpoint)"
+  - pattern: "requestbin\\.com"
+    severity: medium
+    description: "RequestBin endpoint"
+  - pattern: "pipedream\\.net"
+    severity: medium
+    description: "Pipedream endpoint"
+  - pattern: "burpcollaborator\\.net"
+    severity: high
+    description: "Burp Collaborator (pentesting C2)"
+
+# Known malicious IPs (sample — extend from threat feeds)
+malicious_ips: []

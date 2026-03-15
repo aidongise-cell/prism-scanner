@@ -1,0 +1,43 @@
+name: False Negative Report
+description: Report a malicious pattern that Prism failed to detect
+title: "[False Negative] "
+labels: ["false-negative"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve coverage by reporting missed detections.
+
+  - type: textarea
+    id: pattern
+    attributes:
+      label: What Malicious Pattern Was Missed
+      description: Describe the malicious behavior that Prism did not detect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample_code
+    attributes:
+      label: Sample Code
+      description: Provide a minimal code sample that demonstrates the undetected pattern.
+      render: python
+    validations:
+      required: true
+
+  - type: input
+    id: expected_rule
+    attributes:
+      label: Expected Rule to Trigger
+      description: Which existing rule should have caught this, if any?
+      placeholder: "e.g. PRISM-EXEC-001 or 'none — new rule needed'"
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Prism Version
+      description: Output of `prism --version` or commit hash.
+    validations:
+      required: true

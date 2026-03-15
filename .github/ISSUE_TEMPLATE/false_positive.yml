@@ -1,0 +1,43 @@
+name: False Positive Report
+description: Report a rule that incorrectly flags safe code
+title: "[False Positive] "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve detection accuracy by reporting false positives.
+
+  - type: input
+    id: rule_id
+    attributes:
+      label: Rule ID
+      description: The rule ID that triggered the false positive.
+      placeholder: "e.g. PRISM-EXEC-001"
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code That Triggered It
+      description: The file or code snippet that was incorrectly flagged.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: justification
+    attributes:
+      label: Why This Is a False Positive
+      description: Explain why this code is safe and should not be flagged.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Prism Version
+      description: Output of `prism --version` or commit hash.
+    validations:
+      required: true

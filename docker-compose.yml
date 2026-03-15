@@ -1,0 +1,6 @@
+services:
+  scan:
+    build: .
+    volumes:
+      - ./target:/workspace/target:ro
+    command: scan /workspace/target --format cli

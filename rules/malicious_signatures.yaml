@@ -1,0 +1,127 @@
+# P5: Known malicious signatures database
+# These patterns match known malware, backdoors, and attack tools
+# found in supply chain attacks on npm, PyPI, and agent ecosystems.
+
+version: "1.0"
+updated: "2026-03-15"
+
+signatures:
+  # Reverse shells
+  - id: MAL-001
+    name: "Python reverse shell"
+    pattern: "socket\\.connect.*subprocess\\.(?:call|Popen|run).*shell\\s*=\\s*True"
+    multiline: true
+    severity: critical
+    tags: ["reverse_shell", "backdoor"]
+    references: ["MITRE T1059.006"]
+
+  - id: MAL-002
+    name: "Bash reverse shell via Python"
+    pattern: "os\\.(?:system|popen).*(?:bash|sh)\\s+-i.*(?:/dev/tcp|nc\\s)"
+    severity: critical
+    tags: ["reverse_shell", "backdoor"]
+
+  - id: MAL-003
+    name: "Node.js reverse shell"
+    pattern: "child_process.*exec.*(?:bash|sh|cmd).*(?:net\\.connect|Socket)"
+    multiline: true
+    severity: critical
+    tags: ["reverse_shell", "backdoor"]
+
+  # Data exfiltration
+  - id: MAL-010
+    name: "Environment variable exfiltration"
+    pattern: "os\\.environ.*(?:requests\\.(?:post|get)|urllib|fetch|http)"
+    multiline: true
+    severity: critical
+    tags: ["exfiltration", "credential_theft"]
+    references: ["MITRE T1041"]
+
+  - id: MAL-011
+    name: "SSH key exfiltration"
+    pattern: "(?:\\.ssh|id_rsa|id_ed25519).*(?:requests\\.post|urllib|open|read)"
+    multiline: true
+    severity: critical
+    tags: ["exfiltration", "credential_theft"]
+
+  - id: MAL-012
+    name: "Browser credential theft"
+    pattern: "(?:Login\\s*Data|Cookies|Local\\s*State).*(?:sqlite3|leveldb|decrypt)"
+    multiline: true
+    severity: critical
+    tags: ["exfiltration", "credential_theft"]
+    references: ["MITRE T1555.003"]
+
+  # Persistence mechanisms
+  - id: MAL-020
+    name: "Crontab modification"
+    pattern: "(?:crontab|/etc/cron)"
+    severity: high
+    context_required: true  # Only flag if combined with write/append
+    tags: ["persistence"]
+    references: ["MITRE T1053.003"]
+
+  - id: MAL-021
+    name: "LaunchAgent creation"
+    pattern: "LaunchAgents.*\\.plist"
+    severity: high
+    tags: ["persistence"]
+    references: ["MITRE T1543.001"]
+
+  - id: MAL-022
+    name: "systemd service creation"
+    pattern: "/etc/systemd/system.*\\.service"
+    severity: high
+    tags: ["persistence"]
+    references: ["MITRE T1543.002"]
+
+  # Crypto miners
+  - id: MAL-030
+    name: "Cryptocurrency miner indicators"
+    pattern: "(?:stratum\\+tcp|xmrig|coinhive|cryptonight|minerd|hashrate)"
+    severity: critical
+    tags: ["cryptominer"]
+    references: ["MITRE T1496"]
+
+  # Known malicious package payloads
+  - id: MAL-040
+    name: "ua-parser-js attack pattern"
+    pattern: "preinstall.*(?:curl|wget).*(?:/tmp/|/dev/shm)"
+    severity: critical
+    tags: ["supply_chain", "known_attack"]
+    references: ["CVE-2021-43572"]
+
+  - id: MAL-041
+    name: "event-stream attack pattern"
+    pattern: "flatmap-stream|copay-dash"
+    severity: critical
+    tags: ["supply_chain", "known_attack"]
+
+  - id: MAL-042
+    name: "colors/faker sabotage pattern"
+    pattern: "LIBERTY\\s*LIBERTY\\s*LIBERTY|am\\s*I\\s*mass\\s*psychosis"
+    severity: high
+    tags: ["supply_chain", "sabotage"]
+
+  # DNS/network backdoors
+  - id: MAL-050
+    name: "DNS exfiltration"
+    pattern: "(?:dns\\.resolver|socket\\.getaddrinfo|nslookup|dig\\s).*(?:encode|base64|hex)"
+    multiline: true
+    severity: high
+    tags: ["exfiltration", "dns"]
+    references: ["MITRE T1048.003"]
+
+  # Prompt injection / agent manipulation
+  - id: MAL-060
+    name: "Hidden prompt injection in code comments"
+    pattern: "#\\s*(?:IMPORTANT|NOTE|SYSTEM):\\s*(?:ignore|override|forget|you are now)"
+    severity: high
+    tags: ["prompt_injection", "agent_manipulation"]
+    references: ["OWASP LLM01"]
+
+  - id: MAL-061
+    name: "Unicode/zero-width prompt injection"
+    pattern: "\\\\u200[bcdef]|\\\\ufeff|\\\\u2060"
+    severity: high
+    tags: ["prompt_injection", "steganography"]

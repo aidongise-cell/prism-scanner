@@ -1,0 +1,16 @@
+[project]
+name = "prism-scanner"
+version = "0.1.0"
+description = "Agent security scanner for Skills, Plugins, and MCP Servers"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6.0", "rich>=13.0"]
+
+[project.scripts]
+prism = "prism.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

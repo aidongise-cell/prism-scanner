@@ -4,6 +4,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Tests: 67 passed](https://img.shields.io/badge/tests-67%20passed-brightgreen?style=flat-square)]()
 [![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-7b2ff7?style=flat-square)]()
+[![Awesome](https://img.shields.io/badge/Awesome-AI%20Security-fc60a8?style=flat-square&logo=awesomelists&logoColor=white)](https://github.com/TalEliyahu/Awesome-AI-Security)
 
 **Security scanner for AI Agent skills, plugins, and MCP servers.**
 

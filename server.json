@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.aidongise-cell/prism-scanner",
   "title": "Prism Scanner",
-  "description": "Security scanner for AI Agent skills, plugins, and MCP servers. 39+ detection rules with AST taint tracking, A-F grading, and post-uninstall residue cleanup.",
+  "description": "Security scanner for AI Agent skills, plugins, and MCP servers with A-F grading.",
   "repository": {
     "url": "https://github.com/aidongise-cell/prism-scanner",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "prism-scanner",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       }

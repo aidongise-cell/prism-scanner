@@ -8,6 +8,8 @@
 
 **Security scanner for AI Agent skills, plugins, and MCP servers.**
 
+<!-- mcp-name: io.github.aidongise-cell/prism-scanner -->
+
 Prism analyzes code for malicious behavior *before* you install it — and checks your system for leftover threats *after* you uninstall.
 
 > Unlike marketplace-only trust scores, Prism gives you full lifecycle coverage with code-level transparency — pre-install, runtime, and post-uninstall — across every platform, completely open source.

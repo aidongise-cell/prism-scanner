@@ -1,25 +1,21 @@
 {
-  "name": "prism-scanner",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.aidongise-cell/prism-scanner",
+  "title": "Prism Scanner",
   "description": "Security scanner for AI Agent skills, plugins, and MCP servers. 39+ detection rules with AST taint tracking, A-F grading, and post-uninstall residue cleanup.",
+  "repository": {
+    "url": "https://github.com/aidongise-cell/prism-scanner",
+    "source": "github"
+  },
   "version": "0.1.0",
-  "registryType": "pypi",
-  "identifier": "prism-scanner",
-  "tools": [
+  "packages": [
     {
-      "name": "prism_scan",
-      "description": "Full security scan with detailed findings"
-    },
-    {
-      "name": "prism_grade",
-      "description": "Quick A-F grade check for CI/CD gating"
-    },
-    {
-      "name": "prism_clean_scan",
-      "description": "Scan system for residue from uninstalled skills"
-    },
-    {
-      "name": "prism_clean_plan",
-      "description": "Generate cleanup plan for system residue"
+      "registryType": "pypi",
+      "identifier": "prism-scanner",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ]
 }

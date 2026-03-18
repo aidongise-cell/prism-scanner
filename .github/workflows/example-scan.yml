@@ -1,0 +1,31 @@
+# Example: Add Prism Scanner to your CI pipeline
+# Copy this file to your repo's .github/workflows/ directory
+#
+# This scans your agent skills/plugins/MCP servers for security risks
+# and uploads findings to GitHub Code Scanning (Security tab).
+
+name: Prism Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  security-events: write  # Required for SARIF upload
+  contents: read
+
+jobs:
+  prism-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Prism Scanner
+        uses: aidongise-cell/prism-scanner@main
+        with:
+          path: '.'
+          format: 'sarif'
+          output-file: 'prism-results.sarif'
+          fail-on: 'high'  # Fail CI on HIGH or CRITICAL findings

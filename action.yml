@@ -1,0 +1,99 @@
+name: 'Prism Scanner'
+description: 'Security scanner for AI Agent skills, plugins, and MCP servers. 39+ detection rules with AST taint tracking and A-F grading.'
+author: 'Prism Lab'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  path:
+    description: 'Path to scan (default: current directory)'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format: cli, json, sarif, html'
+    required: false
+    default: 'sarif'
+  output-file:
+    description: 'Output file path (default: prism-results.sarif for sarif format)'
+    required: false
+    default: 'prism-results.sarif'
+  fail-on:
+    description: 'Fail if findings at this severity or above: critical, high, medium'
+    required: false
+    default: ''
+  platform:
+    description: 'Force platform type: clawhub, mcp, npm, pip (auto-detected if omitted)'
+    required: false
+    default: ''
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.12'
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Code Scanning (requires security-events: write)'
+    required: false
+    default: 'true'
+
+outputs:
+  grade:
+    description: 'Security grade (A-F)'
+    value: ${{ steps.scan.outputs.grade }}
+  findings-count:
+    description: 'Number of active findings'
+    value: ${{ steps.scan.outputs.findings_count }}
+  report-file:
+    description: 'Path to the output report file'
+    value: ${{ steps.scan.outputs.report_file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Prism Scanner
+      shell: bash
+      run: pip install prism-scanner
+
+    - name: Run Prism Scanner
+      id: scan
+      shell: bash
+      run: |
+        ARGS="scan ${{ inputs.path }}"
+        ARGS="$ARGS --format ${{ inputs.format }}"
+
+        if [ -n "${{ inputs.output-file }}" ]; then
+          ARGS="$ARGS -o ${{ inputs.output-file }}"
+        fi
+
+        if [ -n "${{ inputs.platform }}" ]; then
+          ARGS="$ARGS --platform ${{ inputs.platform }}"
+        fi
+
+        if [ -n "${{ inputs.fail-on }}" ]; then
+          ARGS="$ARGS --fail-on ${{ inputs.fail-on }}"
+        fi
+
+        # Run scan and capture grade from JSON sidecar
+        prism $ARGS --summary 2>&1 | tee /tmp/prism-output.txt || SCAN_EXIT=$?
+
+        # Extract grade from output
+        GRADE=$(grep -oP 'Grade: \K[A-F]' /tmp/prism-output.txt || echo "?")
+        COUNT=$(grep -oP '\d+ findings' /tmp/prism-output.txt | grep -oP '\d+' || echo "0")
+
+        echo "grade=$GRADE" >> $GITHUB_OUTPUT
+        echo "findings_count=$COUNT" >> $GITHUB_OUTPUT
+        echo "report_file=${{ inputs.output-file }}" >> $GITHUB_OUTPUT
+
+        exit ${SCAN_EXIT:-0}
+
+    - name: Upload SARIF to GitHub Code Scanning
+      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif' && always()
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ inputs.output-file }}
+        category: 'prism-scanner'

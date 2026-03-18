@@ -63,6 +63,30 @@ brew install prism-scanner
 npx prism-scanner scan https://github.com/user/skill-repo
 ```
 
+### GitHub Action (CI/CD)
+
+Add Prism to your CI pipeline — findings appear in GitHub's Security tab:
+
+```yaml
+# .github/workflows/prism-scan.yml
+name: Prism Security Scan
+on: [push, pull_request]
+
+permissions:
+  security-events: write
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aidongise-cell/prism-scanner@main
+        with:
+          path: '.'
+          fail-on: 'high'
+```
+
 ### MCP Server (Claude Desktop / Cursor / VS Code)
 
 Prism Scanner can run as an MCP server, giving AI assistants direct access to security scanning tools.

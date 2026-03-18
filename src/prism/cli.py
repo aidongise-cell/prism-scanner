@@ -10,7 +10,7 @@ from .scanner import PrismScanner
 from .fetcher import fetch_target, cleanup_temp
 from .report import generate_html_report
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 # Severity colors/symbols for terminal
 SEVERITY_STYLE = {

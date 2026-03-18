@@ -1,6 +1,6 @@
 [project]
 name = "prism-scanner"
-version = "0.1.0"
+version = "0.1.1"
 description = "Security scanner for AI Agent skills, plugins, and MCP servers"
 readme = "README.md"
 license = {text = "Apache-2.0"}

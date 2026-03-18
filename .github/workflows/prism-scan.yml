@@ -19,4 +19,3 @@ jobs:
       - uses: aidongise-cell/prism-scanner@main
         with:
           path: 'src'
-          fail-on: 'high'

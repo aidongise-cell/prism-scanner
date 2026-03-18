@@ -18,5 +18,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: aidongise-cell/prism-scanner@main
         with:
-          path: '.'
-          fail-on: 'critical'
+          path: 'src'
+          fail-on: 'high'

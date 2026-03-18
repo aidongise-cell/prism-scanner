@@ -46,6 +46,9 @@ outputs:
   report-file:
     description: 'Path to the output report file'
     value: ${{ steps.scan.outputs.report_file }}
+  badge:
+    description: 'Markdown badge for the scan grade'
+    value: ${{ steps.scan.outputs.badge }}
 
 runs:
   using: 'composite'
@@ -85,9 +88,29 @@ runs:
         GRADE=$(grep -oP 'Grade: \K[A-F]' /tmp/prism-output.txt || echo "?")
         COUNT=$(grep -oP '\d+ findings' /tmp/prism-output.txt | grep -oP '\d+' || echo "0")
 
+        # Map grade to badge color
+        case "$GRADE" in
+          A) COLOR="brightgreen" ;;
+          B) COLOR="green" ;;
+          C) COLOR="yellow" ;;
+          D) COLOR="orange" ;;
+          F) COLOR="red" ;;
+          *) COLOR="lightgrey" ;;
+        esac
+
+        BADGE="[![Prism Grade ${GRADE}](https://img.shields.io/badge/Prism-Grade%20${GRADE}-${COLOR}?style=flat-square)](https://github.com/aidongise-cell/prism-scanner)"
+
         echo "grade=$GRADE" >> $GITHUB_OUTPUT
         echo "findings_count=$COUNT" >> $GITHUB_OUTPUT
         echo "report_file=${{ inputs.output-file }}" >> $GITHUB_OUTPUT
+        echo "badge=$BADGE" >> $GITHUB_OUTPUT
+
+        # Print badge to job summary
+        echo "### Prism Scanner Result" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "$BADGE" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Grade: $GRADE** | **Findings: $COUNT**" >> $GITHUB_STEP_SUMMARY
 
         exit ${SCAN_EXIT:-0}
 

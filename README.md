@@ -331,6 +331,31 @@ Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ---
 
+## Prism Verified Badge
+
+Show that your project has been scanned by Prism. Add a badge to your README:
+
+**Grade A (Safe):**
+```markdown
+[![Prism Grade A](https://img.shields.io/badge/Prism-Grade%20A-brightgreen?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAxTDMgNXY2YzAgNS41NSAzLjg0IDEwLjc0IDkgMTIgNS4xNi0xLjI2IDktNi40NSA5LTEyVjVsLTktNHoiLz48L3N2Zz4=)](https://github.com/aidongise-cell/prism-scanner)
+```
+
+**All grades:**
+
+| Grade | Badge |
+|:-----:|-------|
+| A | `![Prism Grade A](https://img.shields.io/badge/Prism-Grade%20A-brightgreen?style=flat-square)` |
+| B | `![Prism Grade B](https://img.shields.io/badge/Prism-Grade%20B-green?style=flat-square)` |
+| C | `![Prism Grade C](https://img.shields.io/badge/Prism-Grade%20C-yellow?style=flat-square)` |
+| D | `![Prism Grade D](https://img.shields.io/badge/Prism-Grade%20D-orange?style=flat-square)` |
+| F | `![Prism Grade F](https://img.shields.io/badge/Prism-Grade%20F-red?style=flat-square)` |
+
+Preview:
+
+[![Prism Grade A](https://img.shields.io/badge/Prism-Grade%20A-brightgreen?style=flat-square)](https://github.com/aidongise-cell/prism-scanner) [![Prism Grade B](https://img.shields.io/badge/Prism-Grade%20B-green?style=flat-square)](https://github.com/aidongise-cell/prism-scanner) [![Prism Grade C](https://img.shields.io/badge/Prism-Grade%20C-yellow?style=flat-square)](https://github.com/aidongise-cell/prism-scanner) [![Prism Grade D](https://img.shields.io/badge/Prism-Grade%20D-orange?style=flat-square)](https://github.com/aidongise-cell/prism-scanner) [![Prism Grade F](https://img.shields.io/badge/Prism-Grade%20F-red?style=flat-square)](https://github.com/aidongise-cell/prism-scanner)
+
+---
+
 ## Acknowledgments
 
 Prism Scanner is developed by **Prism Lab** to address a gap in the AI agent ecosystem: the lack of transparent, code-level security tooling that works across platforms and covers the full agent lifecycle. We believe developers deserve to understand exactly what a skill or plugin does before trusting it with their system.

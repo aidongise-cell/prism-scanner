@@ -356,6 +356,14 @@ Preview:
 
 ---
 
+## Support
+
+If Prism Scanner helped you catch a security risk or gave you peace of mind, please consider giving it a ⭐ on GitHub — it helps others discover the project and keeps development going.
+
+[![Star on GitHub](https://img.shields.io/github/stars/aidongise-cell/prism-scanner?style=social)](https://github.com/aidongise-cell/prism-scanner)
+
+---
+
 ## Acknowledgments
 
 Prism Scanner is developed by **Prism Lab** to address a gap in the AI agent ecosystem: the lack of transparent, code-level security tooling that works across platforms and covers the full agent lifecycle. We believe developers deserve to understand exactly what a skill or plugin does before trusting it with their system.

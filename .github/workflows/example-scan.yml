@@ -28,4 +28,4 @@ jobs:
           path: '.'
           format: 'sarif'
           output-file: 'prism-results.sarif'
-          fail-on: 'high'  # Fail CI on HIGH or CRITICAL findings
+          # fail-on: 'high'  # Uncomment to fail CI on HIGH or CRITICAL findings

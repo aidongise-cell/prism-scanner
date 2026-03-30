@@ -175,25 +175,32 @@ class ASTEngine:
             if func_name in SHELL_SINKS or any(func_name.endswith("." + s.split(".")[-1]) for s in SHELL_SINKS):
                 findings.extend(self._check_s1(node, func_name, ctx, rel_path, source_lines))
 
-            # S4: Network outbound
-            if func_name in NETWORK_SINKS or any(func_name.endswith("." + s.split(".")[-1]) for s in NETWORK_SINKS):
+            # S4: Network outbound — require known module prefix to avoid dict.get() FPs
+            _net_prefixes = ("requests.", "httpx.", "urllib.", "aiohttp.", "http.client.", "socket.", "grpc.")
+            if func_name in NETWORK_SINKS or (
+                any(func_name.endswith("." + s.split(".")[-1]) for s in NETWORK_SINKS)
+                and any(func_name.startswith(p) or ("." in func_name and func_name.rsplit(".", 1)[0].endswith(
+                    ("session", "client", "conn", "connection", "sock", "socket", "response"))) for p in _net_prefixes)
+            ):
                 findings.extend(self._check_s4(node, func_name, ctx, rel_path, source_lines))
 
-            # S6: Dynamic code execution
-            if func_name in DYNAMIC_EXEC_SINKS or func_name.split(".")[-1] in DYNAMIC_EXEC_SINKS:
+            # S6: Dynamic code execution — exclude re.compile() which is regex, not code exec
+            if (func_name in DYNAMIC_EXEC_SINKS or func_name.split(".")[-1] in DYNAMIC_EXEC_SINKS) and func_name != "re.compile":
                 findings.extend(self._check_s6(node, func_name, ctx, rel_path, source_lines))
 
             # S7: Dynamic import
             if func_name in DYNAMIC_IMPORT_FUNCS or func_name.endswith("import_module"):
                 findings.extend(self._check_s7(node, func_name, ctx, rel_path, source_lines))
 
-            # S12: Unsafe deserialization (exclude safe variants like json.loads)
+            # S12: Unsafe deserialization (exclude safe variants)
             _safe_deser = {"json.loads", "json.load", "json.dumps", "json.dump"}
+            _safe_open_prefixes = ("gzip.", "zipfile.", "tarfile.", "io.", "codecs.",
+                                   "builtins.", "tempfile.", "pdfplumber.", "wave.", "aifc.")
             if func_name not in _safe_deser and (
                 func_name in DESER_SINKS or any(func_name.endswith("." + s.split(".")[-1]) for s in DESER_SINKS)
             ):
-                # Extra check: skip if module prefix is "json"
-                if not func_name.startswith("json."):
+                # Skip safe modules
+                if not func_name.startswith("json.") and not any(func_name.startswith(p) for p in _safe_open_prefixes):
                     findings.extend(self._check_s12(node, func_name, ctx, rel_path, source_lines))
 
             # S2/S3: File operations

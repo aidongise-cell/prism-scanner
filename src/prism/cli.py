@@ -5,12 +5,19 @@ import sys
 import time
 from pathlib import Path
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
 from .models import ScanTarget, ScanResult, Severity
 from .scanner import PrismScanner
 from .fetcher import fetch_target, cleanup_temp
 from .report import generate_html_report
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
+
+console = Console(highlight=False)
 
 # Severity colors/symbols for terminal
 SEVERITY_STYLE = {
@@ -19,6 +26,14 @@ SEVERITY_STYLE = {
     Severity.MEDIUM: ("yellow", "\u26a0"),
     Severity.LOW: ("dim", "\u00b7"),
     Severity.INFO: ("dim", "\u2139"),
+}
+
+GRADE_COLOR = {
+    "A": "bold green",
+    "B": "green",
+    "C": "yellow",
+    "D": "bold red",
+    "F": "bold white on red",
 }
 
 
@@ -134,23 +149,23 @@ def _run_clean(args):
 
     # CLI output
     _print_header()
-    print(f"  Scanning system for agent residue...\n")
+    console.print(f"  Scanning system for agent residue...\n")
 
     if not findings:
-        print("  No residue found. System is clean.\n")
+        console.print("  [green]No residue found. System is clean.[/green]\n")
         return
 
-    print(f"  Found {len(findings)} items:\n")
+    console.print(f"  Found [bold]{len(findings)}[/bold] items:\n")
     for f in findings:
         style, symbol = SEVERITY_STYLE.get(f.severity, ("", "?"))
         severity_str = f.severity.value.upper().ljust(8)
         location = f.file_path or ""
-        print(f"  {symbol} {severity_str}  [{f.rule_id}]  {f.title}")
+        console.print(f"  [{style}]{symbol} {severity_str}[/{style}]  [bold]\\[{f.rule_id}][/bold]  {f.title}")
         if location:
-            print(f"    {location}")
+            console.print(f"    [dim]{location}[/dim]")
         if f.remediation:
-            print(f"    Fix: {f.remediation}")
-        print()
+            console.print(f"    [cyan]Fix: {f.remediation}[/cyan]")
+        console.print()
 
     if args.plan:
         plan = generate_plan(findings)
@@ -165,11 +180,13 @@ def _run_clean(args):
 
 
 def _print_header():
-    print()
-    print("\u2501" * 50)
-    print(f"  Prism Scanner v{VERSION}")
-    print("\u2501" * 50)
-    print()
+    console.print()
+    console.print(Panel(
+        f"[bold cyan]Prism Scanner[/bold cyan] v{VERSION}",
+        style="cyan",
+        width=60,
+    ))
+    console.print()
 
 
 def _print_cli_report(result: ScanResult, show_trace: bool = False,
@@ -178,11 +195,11 @@ def _print_cli_report(result: ScanResult, show_trace: bool = False,
     _print_header()
 
     target_name = Path(result.target.path).name
-    print(f"  Target: {target_name}")
+    console.print(f"  [bold]Target:[/bold]   {target_name}")
     if result.target.platform:
-        print(f"  Platform: {result.target.platform}")
-    print(f"  Duration: {result.scan_duration_ms}ms")
-    print()
+        console.print(f"  [bold]Platform:[/bold] {result.target.platform}")
+    console.print(f"  [bold]Duration:[/bold] {result.scan_duration_ms}ms")
+    console.print()
 
     findings = result.active_findings
     if not verbose:
@@ -195,77 +212,83 @@ def _print_cli_report(result: ScanResult, show_trace: bool = False,
 
     if not summary_only:
         if behavior:
-            print("[1/3] Behavior Analysis")
+            console.print("  [bold cyan]\\[1/3] Behavior Analysis[/bold cyan]")
             for f in sorted(behavior, key=lambda x: x.severity_score, reverse=True):
                 _print_finding(f, show_trace)
-            print()
+            console.print()
 
         if metadata:
-            print("[2/3] Metadata Analysis")
+            console.print("  [bold cyan]\\[2/3] Metadata & Pattern Analysis[/bold cyan]")
             for f in sorted(metadata, key=lambda x: x.severity_score, reverse=True):
                 _print_finding(f, show_trace)
-            print()
+            console.print()
 
         if residue:
-            print("[3/3] Residue Scan")
+            console.print("  [bold cyan]\\[3/3] Residue Scan[/bold cyan]")
             for f in sorted(residue, key=lambda x: x.severity_score, reverse=True):
                 _print_finding(f, show_trace)
-            print()
+            console.print()
 
     # Summary
     from .scoring import GRADE_INFO
-    print("\u2501" * 50)
+    console.rule(style="cyan")
     grade_label = GRADE_INFO.get(result.grade, {}).get("label", result.grade)
     recommendation = GRADE_INFO.get(result.grade, {}).get("recommendation", "")
-    print(f"  Grade: {result.grade} ({grade_label})")
-    print()
+    grade_style = GRADE_COLOR.get(result.grade, "bold")
+    console.print(f"  Grade: [{grade_style}]{result.grade} ({grade_label})[/{grade_style}]")
+    console.print()
 
     if result.key_risks:
-        print("  Key Risks:")
+        console.print("  [bold]Key Risks:[/bold]")
         for r in result.key_risks:
-            print(f"    \u25b8 {r}")
-        print()
+            console.print(f"    [red]\u25b8[/red] {r}")
+        console.print()
 
     if result.behavior_tags:
-        print("  Behavior Profile:")
-        print(f"    {', '.join(result.behavior_tags)}")
-        print()
+        console.print("  [bold]Behavior Profile:[/bold]")
+        console.print(f"    {', '.join(result.behavior_tags)}")
+        console.print()
 
-    print(f"  Recommendation: {recommendation}")
+    console.print(f"  [bold]Recommendation:[/bold] {recommendation}")
 
     # Counts
     counts = {}
     for f in findings:
         counts[f.severity.value] = counts.get(f.severity.value, 0) + 1
     if counts:
-        parts = [f"{v} {k}" for k, v in sorted(counts.items())]
-        print(f"\n  Findings: {', '.join(parts)}")
+        parts = []
+        sev_color = {"critical": "bold red", "high": "red", "medium": "yellow", "low": "dim", "info": "dim"}
+        for k, v in sorted(counts.items()):
+            c = sev_color.get(k, "")
+            parts.append(f"[{c}]{v} {k}[/{c}]")
+        console.print(f"\n  [bold]Findings:[/bold] {', '.join(parts)}")
 
-    print()
+    console.print()
     if not show_trace:
-        print("  Use --show-trace for data flow evidence")
-    print("  Use --format json for machine-readable output")
-    print()
-    print("  \u2b50 Found Prism useful? Star us on GitHub:")
-    print("     https://github.com/aidongise-cell/prism-scanner")
-    print("\u2501" * 50)
-    print()
+        console.print("  [dim]Use --show-trace for data flow evidence[/dim]")
+    console.print("  [dim]Use --format json for machine-readable output[/dim]")
+    console.print()
+    console.print("  [yellow]\u2b50[/yellow] Found Prism useful? Star us on GitHub:")
+    console.print("     [link=https://github.com/aidongise-cell/prism-scanner]https://github.com/aidongise-cell/prism-scanner[/link]")
+    console.rule(style="cyan")
+    console.print()
 
 
 def _print_finding(f, show_trace: bool = False):
-    """Print a single finding."""
-    symbol = SEVERITY_STYLE.get(f.severity, ("", "?"))[1]
+    """Print a single finding with color."""
+    style, symbol = SEVERITY_STYLE.get(f.severity, ("", "?"))
     sev = f.severity.value.upper().ljust(8)
     location = ""
     if f.file_path:
-        location = f"  {f.file_path}"
+        location = f"  [dim]{f.file_path}"
         if f.line:
             location += f":{f.line}"
+        location += "[/dim]"
 
-    print(f"  {symbol} {sev}  {f.rule_id.ljust(4)}  {f.title}{location}")
+    console.print(f"  [{style}]{symbol} {sev}[/{style}]  [bold]{f.rule_id.ljust(4)}[/bold]  {f.title}{location}")
 
     if show_trace and f.evidence:
-        print(f"           Evidence: {f.evidence}")
+        console.print(f"           [dim]Evidence: {f.evidence}[/dim]")
 
 
 def _to_sarif(result: ScanResult) -> dict:

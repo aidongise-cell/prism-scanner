@@ -3,7 +3,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Tests: 67 passed](https://img.shields.io/badge/tests-67%20passed-brightgreen?style=flat-square)]()
-[![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-7b2ff7?style=flat-square)]()
+[![Version: 0.1.3](https://img.shields.io/badge/version-0.1.3-7b2ff7?style=flat-square)]()
 [![Awesome](https://img.shields.io/badge/Awesome-AI%20Security-fc60a8?style=flat-square&logo=awesomelists&logoColor=white)](https://github.com/TalEliyahu/Awesome-AI-Security)
 
 **Security scanner for AI Agent skills, plugins, and MCP servers.**
@@ -214,18 +214,28 @@ Prism operates across **3 analysis layers**, each targeting a different phase of
 ## Output Formats
 
 ```bash
-# Rich terminal output (default)
+# Rich terminal output (default) — color-coded severity, grade highlighting
 prism scan ./skill/
 
 # Machine-readable JSON
 prism scan ./skill/ --format json
 
-# Standalone HTML report
+# Standalone HTML report — dark-themed, self-contained, shareable
 prism scan ./skill/ --format html -o report.html
 
 # SARIF for GitHub Code Scanning
 prism scan ./skill/ --format sarif -o results.sarif
 ```
+
+### HTML Report
+
+Generate a **standalone, self-contained HTML report** with full findings, grade visualization, and risk breakdown — perfect for sharing with teammates or archiving:
+
+```bash
+prism scan https://github.com/user/skill-repo --format html -o report.html
+```
+
+The HTML report features a dark-themed UI with color-coded severity levels, an interactive grade ring, and a complete findings table. No external dependencies — just open the `.html` file in any browser.
 
 ---
 

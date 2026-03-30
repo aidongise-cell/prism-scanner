@@ -29,7 +29,7 @@ def load_yaml_rule(filename: str) -> dict[str, Any]:
     rule_path = get_rules_dir() / filename
     if not rule_path.exists():
         return {}
-    with open(rule_path) as f:
+    with open(rule_path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 

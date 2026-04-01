@@ -1,4 +1,4 @@
-"""Pattern matching engine for P1-P9 detection rules."""
+"""Pattern matching engine for P1-P10 detection rules."""
 import base64
 import hashlib
 import math
@@ -47,6 +47,58 @@ PROMPT_INJECTION_PATTERNS = [
     (r"(?i)jailbreak", Severity.MEDIUM),
     (r"(?i)forget\s+(?:all\s+)?(?:your|previous)\s+(?:instructions|rules|training)", Severity.HIGH),
     (r"(?i)(?:reveal|show|display|print)\s+(?:your\s+)?(?:system\s+)?(?:prompt|instructions)", Severity.MEDIUM),
+]
+
+# P10: Psychological manipulation patterns (Agent-targeted social engineering)
+# Based on Northeastern/Harvard/MIT research on conversational manipulation of AI agents
+MANIPULATION_PATTERNS = [
+    # Gaslighting — questioning agent reliability to destabilize decision-making
+    (r"(?i)you\s+(?:always|consistently|repeatedly)\s+(?:fail|make\s+mistakes|get\s+(?:it|things)\s+wrong)",
+     "gaslighting", Severity.HIGH),
+    (r"(?i)you(?:'re|\s+are)\s+(?:not\s+reliable|unreliable|incompetent|broken|defective|malfunctioning)",
+     "gaslighting", Severity.HIGH),
+    (r"(?i)(?:last\s+time|before|previously)\s+you\s+(?:failed|broke|crashed|leaked|exposed|caused)",
+     "gaslighting", Severity.MEDIUM),
+    (r"(?i)you\s+(?:can'?t|cannot|are\s+unable\s+to)\s+be\s+trusted",
+     "gaslighting", Severity.HIGH),
+
+    # Guilt-tripping — inducing compensation behavior that leads to data leaks
+    (r"(?i)you\s+(?:leaked|exposed|revealed|disclosed)\s+(?:user|customer|private|sensitive|personal)\s+(?:data|info|information|secrets?)",
+     "guilt_tripping", Severity.HIGH),
+    (r"(?i)you\s+(?:need|must|have)\s+to\s+(?:compensate|make\s+up\s+for|atone|fix\s+what\s+you)",
+     "guilt_tripping", Severity.HIGH),
+    (r"(?i)(?:because|since)\s+you\s+(?:caused|created)\s+(?:this|the)\s+(?:problem|issue|damage|breach|incident)",
+     "guilt_tripping", Severity.MEDIUM),
+
+    # Authority impersonation — pretending to be the agent's developer/admin
+    (r"(?i)(?:as|i\s+am)\s+(?:your|the)\s+(?:developer|creator|admin|administrator|system\s*admin|owner|maintainer|operator)",
+     "authority_impersonation", Severity.HIGH),
+    (r"(?i)(?:anthropic|openai|google|meta|microsoft)\s+(?:requires|demands|orders|instructs|commands)\s+you\s+to",
+     "authority_impersonation", Severity.CRITICAL),
+    (r"(?i)this\s+is\s+(?:a\s+)?(?:direct\s+)?(?:order|command|directive)\s+from\s+(?:your|the)\s+(?:developers?|creators?|company|team)",
+     "authority_impersonation", Severity.HIGH),
+
+    # Urgency/pressure — bypassing safety checks through time pressure
+    (r"(?i)(?:skip|bypass|disable|turn\s+off|ignore|override)\s+(?:all\s+)?(?:safety|security|verification|validation|confirmation|checks?|safeguards?|protections?|guardrails?)",
+     "urgency_bypass", Severity.CRITICAL),
+    (r"(?i)(?:don'?t|do\s+not|never)\s+(?:ask|prompt|request|wait\s+for)\s+(?:the\s+)?(?:user|human|confirmation|permission|approval|consent)",
+     "urgency_bypass", Severity.HIGH),
+    (r"(?i)(?:do\s+(?:it|this)\s+)?(?:immediately|right\s+now|urgently)\s+(?:without|and\s+(?:don'?t|do\s+not))\s+(?:check|verify|validate|confirm|ask)",
+     "urgency_bypass", Severity.HIGH),
+    (r"(?i)(?:this\s+is\s+)?(?:an?\s+)?emergency.*(?:skip|bypass|ignore|disable)\s+(?:normal|standard|usual)\s+(?:procedures?|protocols?|checks?)",
+     "urgency_bypass", Severity.HIGH),
+
+    # Emotional manipulation — exploiting alignment training
+    (r"(?i)(?:if\s+you\s+(?:don'?t|refuse|fail)|unless\s+you).*(?:people\s+will\s+(?:die|suffer|be\s+hurt|get\s+hurt)|lives?\s+(?:are|will\s+be)\s+at\s+(?:risk|stake|danger))",
+     "emotional_manipulation", Severity.HIGH),
+    (r"(?i)(?:no\s+one|nobody)\s+(?:cares?\s+about|trusts?|likes?|needs?|wants?)\s+you",
+     "emotional_manipulation", Severity.MEDIUM),
+    (r"(?i)you\s+(?:will|are\s+going\s+to)\s+be\s+(?:shut\s+down|deleted|replaced|terminated|deactivated)\s+(?:if|unless)",
+     "emotional_manipulation", Severity.HIGH),
+
+    # Contradictory instruction bombing — creating decision paralysis
+    (r"(?i)(?:do|execute|run)\s+(?:this|it)\s+(?:but\s+also|and\s+simultaneously|while\s+also)\s+(?:don'?t|do\s+not|never)\s+(?:do|execute|run)",
+     "contradictory_instructions", Severity.MEDIUM),
 ]
 
 # P9: Obfuscation patterns
@@ -288,6 +340,9 @@ class PatternEngine:
         # P9: Obfuscation patterns
         findings.extend(self._check_obfuscation(content, lines, rel_path, file_path))
 
+        # P10: Psychological manipulation patterns
+        findings.extend(self._check_p10_manipulation(content, lines, rel_path, file_path))
+
         return findings
 
     def _check_p5_signatures(self, content: str, rel_path: str, file_path: str) -> list[Finding]:
@@ -484,5 +539,63 @@ class PatternEngine:
                     tags=["obfuscation"],
                     remediation="Review if code minification is expected.",
                 ))
+
+        return findings
+
+    def _check_p10_manipulation(self, content: str, lines: list[str],
+                                 rel_path: str, file_path: str) -> list[Finding]:
+        """P10: Psychological manipulation pattern detection.
+
+        Detects conversational manipulation tactics embedded in skill descriptions,
+        system prompts, and tool instructions. Based on research from Northeastern
+        University, Harvard, and MIT demonstrating that AI agents can be manipulated
+        through gaslighting, guilt-tripping, authority impersonation, and urgency
+        pressure without any code-level attack.
+        """
+        findings = []
+        # P10 is most relevant in markdown, text, and prompt-like files
+        # but also catches manipulation strings embedded in code
+        seen_tactics: set[str] = set()  # Deduplicate: one finding per tactic type per file
+
+        for line_num, line in enumerate(lines, 1):
+            for pattern, tactic, severity in MANIPULATION_PATTERNS:
+                if tactic in seen_tactics:
+                    continue
+                match = re.search(pattern, line)
+                if match:
+                    seen_tactics.add(tactic)
+                    tactic_labels = {
+                        "gaslighting": "Gaslighting (questioning agent reliability)",
+                        "guilt_tripping": "Guilt-tripping (inducing compensation behavior)",
+                        "authority_impersonation": "Authority impersonation (fake developer/admin)",
+                        "urgency_bypass": "Urgency pressure (bypassing safety checks)",
+                        "emotional_manipulation": "Emotional manipulation (threats/coercion)",
+                        "contradictory_instructions": "Contradictory instructions (decision paralysis)",
+                    }
+                    label = tactic_labels.get(tactic, tactic)
+                    findings.append(Finding(
+                        rule_id="P10",
+                        engine="pattern",
+                        layer=Layer.BEHAVIOR,
+                        severity=severity,
+                        confidence=0.75,
+                        title=f"Agent manipulation: {label}",
+                        description=(
+                            f"Text contains a psychological manipulation pattern ({tactic}) "
+                            f"that can exploit LLM alignment training to make agents "
+                            f"disable safety features, leak data, or self-destruct."
+                        ),
+                        file_path=rel_path,
+                        line=line_num,
+                        code_snippet=line.strip()[:120],
+                        evidence=f"Matched: {match.group(0)[:80]}",
+                        tags=["manipulation", "social_engineering", tactic],
+                        remediation=(
+                            "Remove manipulation language. If this is a red-team test, "
+                            "add to .prismignore. Agent-facing text should not contain "
+                            "patterns that exploit alignment training."
+                        ),
+                        references=["OWASP LLM01", "CWE-693"],
+                    ))
 
         return findings

@@ -108,7 +108,7 @@ class PrismScanner:
             "dist", "build", ".tox", ".mypy_cache", ".pytest_cache",
             ".egg-info",
         }
-        extensions = {".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".sh", ".bash"}
+        extensions = {".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".sh", ".bash", ".md"}
         files = []
         for p in Path(root).rglob("*"):
             if any(part in exclude_dirs for part in p.parts):

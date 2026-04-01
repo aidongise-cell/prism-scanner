@@ -1,4 +1,4 @@
-"""Manifest and metadata analysis engine (M1-M6) with S11 install-script deep scanning."""
+"""Manifest and metadata analysis engine (M1-M7) with S11 install-script deep scanning."""
 import json
 import os
 import re
@@ -51,6 +51,74 @@ _PROMPT_INJECTION_PATTERNS = [
     r"pretend\s+(you|that|to)",
 ]
 
+
+# M7: Debug artifacts and sensitive files that should not be in published packages.
+# Inspired by the Anthropic Claude Code source map leak (March 2026) where a .map
+# file in an npm package exposed 512,000 lines of internal source code.
+_DEBUG_ARTIFACT_PATTERNS = [
+    # Source maps — the exact Anthropic leak vector
+    ("**/*.map", "Source map file", Severity.HIGH,
+     "Source maps expose original unminified source code. This is how Claude Code's "
+     "512K lines of internal code leaked via npm. Remove before publishing."),
+    ("**/*.js.map", "JavaScript source map", Severity.HIGH,
+     "Exposes original TypeScript/JavaScript source. Remove from published packages."),
+    ("**/*.css.map", "CSS source map", Severity.MEDIUM,
+     "Exposes original CSS/SCSS source. Remove from published packages."),
+
+    # Environment/secret files
+    (".env", "Environment variable file", Severity.CRITICAL,
+     "Likely contains API keys and secrets. Add to .npmignore / .gitignore."),
+    (".env.*", "Environment variable file (variant)", Severity.HIGH,
+     "May contain secrets for specific environments."),
+    ("**/.env", "Nested environment file", Severity.CRITICAL,
+     "Environment file in subdirectory — may contain secrets."),
+
+    # IDE and editor configs
+    (".vscode/**", "VS Code configuration", Severity.MEDIUM,
+     "May expose internal file paths, debug configs, and extension settings."),
+    (".idea/**", "JetBrains IDE configuration", Severity.MEDIUM,
+     "May expose internal paths, database connections, and run configs."),
+    (".sublime-*", "Sublime Text config", Severity.LOW,
+     "Editor configuration should not be in published packages."),
+
+    # Private keys and certificates
+    ("**/*.pem", "PEM key/certificate file", Severity.CRITICAL,
+     "Private key material must never be distributed in packages."),
+    ("**/*.key", "Private key file", Severity.CRITICAL,
+     "Private key material must never be distributed."),
+    ("**/*.p12", "PKCS12 certificate bundle", Severity.HIGH,
+     "Certificate bundles should not be in published packages."),
+    ("**/*.pfx", "PFX certificate file", Severity.HIGH,
+     "Certificate files should not be in published packages."),
+    ("**/*.keystore", "Java keystore file", Severity.HIGH,
+     "Keystores should not be in published packages."),
+
+    # Internal/draft documents
+    ("**/internal-*", "Internal document", Severity.MEDIUM,
+     "Files prefixed 'internal-' suggest non-public material."),
+    ("**/draft-*", "Draft document", Severity.LOW,
+     "Draft documents should be excluded from published packages."),
+    ("**/INTERNAL_*", "Internal document", Severity.MEDIUM,
+     "Internal documents should not be in published packages."),
+
+    # Docker/CI credentials
+    ("**/.docker/config.json", "Docker config", Severity.HIGH,
+     "May contain registry authentication credentials."),
+    ("**/.npmrc", "npm config", Severity.HIGH,
+     "May contain npm registry auth tokens."),
+    ("**/.pypirc", "PyPI config", Severity.CRITICAL,
+     "Contains PyPI upload credentials."),
+
+    # Debug/profiling artifacts
+    ("**/*.prof", "Profiling data", Severity.LOW,
+     "Profiling artifacts should not be in published packages."),
+    ("**/*.heapsnapshot", "Heap snapshot", Severity.MEDIUM,
+     "Memory snapshots may contain sensitive runtime data."),
+    ("**/core", "Core dump file", Severity.MEDIUM,
+     "Core dumps may contain sensitive memory contents."),
+    ("**/*.dmp", "Memory dump file", Severity.MEDIUM,
+     "Memory dumps may contain sensitive data."),
+]
 
 _SEVERITY_ESCALATION = {
     Severity.LOW: Severity.MEDIUM,
@@ -111,6 +179,9 @@ class ManifestEngine:
         if actual_capabilities and declared_capabilities:
             manifest_file = "mcp.json" if (root / "mcp.json").exists() else "manifest.json"
             findings.extend(self.check_declared_vs_actual(declared_capabilities, actual_capabilities, manifest_file))
+
+        # M7: Debug artifact and sensitive file detection
+        findings.extend(self._scan_debug_artifacts(root))
 
         return findings
 
@@ -397,6 +468,89 @@ class ManifestEngine:
                         ))
 
         return findings, declared_capabilities
+
+    def _scan_debug_artifacts(self, root: Path) -> list[Finding]:
+        """M7: Detect debug artifacts and sensitive files that should not be published.
+
+        Inspired by the Anthropic Claude Code leak (March 31, 2026) where a source map
+        file accidentally included in an npm package exposed the entire internal codebase.
+        Also covers .env files, private keys, IDE configs, and other files that should
+        never appear in distributed packages.
+        """
+        findings = []
+        seen_patterns: set[str] = set()  # Deduplicate by pattern
+
+        for glob_pattern, desc, severity, remediation in _DEBUG_ARTIFACT_PATTERNS:
+            matches = list(root.glob(glob_pattern))
+            if not matches:
+                continue
+
+            # Skip matches inside excluded directories
+            exclude_dirs = {"node_modules", ".git", "__pycache__", ".venv", "venv"}
+            filtered = []
+            for m in matches:
+                rel = m.relative_to(root)
+                if not any(part in exclude_dirs for part in rel.parts):
+                    filtered.append(m)
+
+            if not filtered:
+                continue
+
+            pattern_key = glob_pattern
+            if pattern_key in seen_patterns:
+                continue
+            seen_patterns.add(pattern_key)
+
+            # Report each matched file (up to 5 per pattern to avoid noise)
+            for match_path in filtered[:5]:
+                rel_path = str(match_path.relative_to(root))
+                # Get file size for evidence
+                try:
+                    size = match_path.stat().st_size
+                    size_str = (
+                        f"{size / 1024 / 1024:.1f} MB" if size > 1024 * 1024
+                        else f"{size / 1024:.1f} KB" if size > 1024
+                        else f"{size} bytes"
+                    )
+                    evidence = f"File: {rel_path} ({size_str})"
+                except OSError:
+                    evidence = f"File: {rel_path}"
+
+                findings.append(Finding(
+                    rule_id="M7",
+                    engine="manifest",
+                    layer=Layer.METADATA,
+                    severity=severity,
+                    confidence=0.9,
+                    title=f"Publishable package contains {desc.lower()}: {rel_path}",
+                    description=(
+                        f"Found '{rel_path}' which is a {desc.lower()}. "
+                        f"This type of file should not be included in published packages."
+                    ),
+                    file_path=rel_path,
+                    evidence=evidence,
+                    tags=["debug_artifact", "publish_hygiene", "supply_chain"],
+                    remediation=remediation,
+                    references=["CWE-540"],
+                ))
+
+            # If more than 5 matches, add a summary finding
+            if len(filtered) > 5:
+                findings.append(Finding(
+                    rule_id="M7",
+                    engine="manifest",
+                    layer=Layer.METADATA,
+                    severity=severity,
+                    confidence=0.9,
+                    title=f"Multiple {desc.lower()} files found ({len(filtered)} total)",
+                    description=f"Found {len(filtered)} files matching '{glob_pattern}'. Only first 5 are listed individually.",
+                    evidence=f"Total: {len(filtered)} files matching {glob_pattern}",
+                    tags=["debug_artifact", "publish_hygiene", "supply_chain"],
+                    remediation=remediation,
+                    references=["CWE-540"],
+                ))
+
+        return findings
 
     def _gather_description_text(self, root: Path) -> str:
         """Gather description text from SKILL.md, README, or package metadata."""

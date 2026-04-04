@@ -241,38 +241,69 @@ class PatternEngine:
             # P3: Hex/Unicode escape sequences
             hex_count = len(re.findall(r"\\x[0-9a-fA-F]{2}", line))
             unicode_count = len(re.findall(r"\\u[0-9a-fA-F]{4}", line))
-            if hex_count >= 5 or unicode_count >= 5:
+            if hex_count >= 8 or unicode_count >= 8:
                 total_escapes = hex_count + unicode_count
-                try:
-                    decoded = line.encode().decode("unicode_escape")
-                    evidence = f"Decoded: {decoded.strip()[:80]}"
-                except Exception:
-                    evidence = f"{total_escapes} escape sequences"
+                # Skip regex context: r-strings, re.compile(), re.sub(), re.match(), etc.
+                if re.search(r'''(?:^|=\s*)r['"]|re\.(?:compile|sub|match|search|findall|fullmatch)\s*\(''', line):
+                    pass
+                # Skip known binary magic byte patterns (PNG, JPEG, ZIP, GIF, PDF, etc.)
+                elif re.search(r"\\x89PNG|\\xff\\xd8\\xff|\\x50\\x4b\\x03\\x04|\\x47\\x49\\x46|\\x25\\x50\\x44\\x46", line):
+                    pass
+                # Skip character class ranges like [\x00-\x1f] (control char filtering)
+                elif re.search(r"\[\\x[0-9a-fA-F]{2}-\\x[0-9a-fA-F]{2}\]", line):
+                    pass
+                else:
+                    try:
+                        decoded = line.encode().decode("unicode_escape")
+                        evidence = f"Decoded: {decoded.strip()[:80]}"
+                    except Exception:
+                        evidence = f"{total_escapes} escape sequences"
 
-                findings.append(Finding(
-                    rule_id="P3",
-                    engine="pattern",
-                    layer=Layer.BEHAVIOR,
-                    severity=Severity.MEDIUM,
-                    confidence=0.7,
-                    title="Hex/Unicode escape obfuscation",
-                    description=f"Line contains {total_escapes} escape sequences, possible obfuscation",
-                    file_path=rel_path,
-                    line=line_num,
-                    code_snippet=line.strip()[:120],
-                    evidence=evidence,
-                    tags=["obfuscation"],
-                    remediation="Use plain text strings. Obfuscation is a red flag.",
-                ))
+                    findings.append(Finding(
+                        rule_id="P3",
+                        engine="pattern",
+                        layer=Layer.BEHAVIOR,
+                        severity=Severity.MEDIUM,
+                        confidence=0.7,
+                        title="Hex/Unicode escape obfuscation",
+                        description=f"Line contains {total_escapes} escape sequences, possible obfuscation",
+                        file_path=rel_path,
+                        line=line_num,
+                        code_snippet=line.strip()[:120],
+                        evidence=evidence,
+                        tags=["obfuscation"],
+                        remediation="Use plain text strings. Obfuscation is a red flag.",
+                    ))
 
             # P4: Hardcoded IPs
             ip_matches = re.findall(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", line)
             for ip in ip_matches:
+                # Validate: each octet must be 0-255
+                octets = ip.split(".")
+                if any(int(o) > 255 for o in octets):
+                    continue
                 # Skip common safe IPs
                 if ip.startswith(("127.", "0.0.", "255.")):
                     continue
                 if ip.startswith(("10.", "192.168.", "172.")):
                     continue  # Private IPs are usually fine
+                # Skip RFC 5737 documentation IPs (TEST-NET-1/2/3)
+                if ip.startswith("192.0.2.") or ip.startswith("198.51.100.") or ip.startswith("203.0.113."):
+                    continue
+                # Skip version-number-like patterns:
+                # 1. Line contains "version" (case-insensitive) or variable name has VERSION
+                line_lower = line.lower()
+                if "version" in line_lower:
+                    continue
+                # 2. IP appears after pip-style version constraints (==, >=, <=, ~=, !=)
+                ip_pos = line.find(ip)
+                context_before = line[max(0, ip_pos - 15):ip_pos]
+                if re.search(r"[=<>!~]=?\s*$", context_before):
+                    continue
+                # 3. Skip if the "IP" is part of a longer dotted sequence (e.g. 1.2.3.4.5)
+                full_match = re.search(r"\d+\.\d+\.\d+\.\d+\.\d+", line)
+                if full_match and ip in full_match.group():
+                    continue
                 severity = Severity.MEDIUM
                 findings.append(Finding(
                     rule_id="P4",

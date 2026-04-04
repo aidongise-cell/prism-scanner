@@ -31,23 +31,28 @@ signatures:
   # Data exfiltration
   - id: MAL-010
     name: "Environment variable exfiltration"
-    pattern: "os\\.environ.*(?:requests\\.(?:post|get)|urllib|fetch|http)"
-    multiline: true
+    # Tightened: require env read and network send on the same line,
+    # not just co-existing anywhere in the file.
+    pattern: "os\\.environ[^\\n]{0,80}(?:requests\\.(?:post|put)|urllib\\.request|fetch\\(|httpx\\.post)|(?:requests\\.(?:post|put)|urllib\\.request|fetch\\(|httpx\\.post)[^\\n]{0,200}os\\.environ"
+    multiline: false
     severity: critical
     tags: ["exfiltration", "credential_theft"]
     references: ["MITRE T1041"]
 
   - id: MAL-011
     name: "SSH key exfiltration"
-    pattern: "(?:\\.ssh|id_rsa|id_ed25519).*(?:requests\\.post|urllib|open|read)"
-    multiline: true
+    # Tightened: require SSH key path and network send within same line
+    pattern: "(?:\\.ssh|id_rsa|id_ed25519)[^\\n]{0,120}(?:requests\\.post|urllib\\.request|httpx\\.post)|(?:requests\\.post|urllib\\.request|httpx\\.post)[^\\n]{0,120}(?:\\.ssh|id_rsa|id_ed25519)"
+    multiline: false
     severity: critical
     tags: ["exfiltration", "credential_theft"]
 
   - id: MAL-012
     name: "Browser credential theft"
-    pattern: "(?:Login\\s*Data|Cookies|Local\\s*State).*(?:sqlite3|leveldb|decrypt)"
-    multiline: true
+    # Tightened: require browser DB path and crypto/DB access within same line.
+    # Old pattern matched "local state" in comments + "sqlite3" hundreds of lines away.
+    pattern: "(?:Login\\s*Data|Cookies|Local\\s*State)[^\\n]{0,120}(?:sqlite3|leveldb|decrypt)|(?:sqlite3|leveldb|decrypt)[^\\n]{0,120}(?:Login\\s*Data|Cookies|Local\\s*State)"
+    multiline: false
     severity: critical
     tags: ["exfiltration", "credential_theft"]
     references: ["MITRE T1555.003"]

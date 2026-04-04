@@ -171,8 +171,13 @@ class ASTEngine:
             if not func_name:
                 continue
 
-            # S1: Shell command execution
-            if func_name in SHELL_SINKS or any(func_name.endswith("." + s.split(".")[-1]) for s in SHELL_SINKS):
+            # S1: Shell command execution — require known shell module prefix to avoid
+            # FPs from uvicorn.run(), asyncio.run(), app.run(), etc.
+            _shell_prefixes = ("subprocess.", "os.")
+            if func_name in SHELL_SINKS or (
+                any(func_name.endswith("." + s.split(".")[-1]) for s in SHELL_SINKS)
+                and any(func_name.startswith(p) for p in _shell_prefixes)
+            ):
                 findings.extend(self._check_s1(node, func_name, ctx, rel_path, source_lines))
 
             # S4: Network outbound — require known module prefix to avoid dict.get() FPs
@@ -192,16 +197,15 @@ class ASTEngine:
             if func_name in DYNAMIC_IMPORT_FUNCS or func_name.endswith("import_module"):
                 findings.extend(self._check_s7(node, func_name, ctx, rel_path, source_lines))
 
-            # S12: Unsafe deserialization (exclude safe variants)
-            _safe_deser = {"json.loads", "json.load", "json.dumps", "json.dump"}
-            _safe_open_prefixes = ("gzip.", "zipfile.", "tarfile.", "io.", "codecs.",
-                                   "builtins.", "tempfile.", "pdfplumber.", "wave.", "aifc.")
-            if func_name not in _safe_deser and (
-                func_name in DESER_SINKS or any(func_name.endswith("." + s.split(".")[-1]) for s in DESER_SINKS)
+            # S12: Unsafe deserialization — only trigger on known dangerous modules.
+            # Reversed logic: instead of excluding safe prefixes (unbounded), we require
+            # a known dangerous prefix. This eliminates path.open(), gzip.open(), etc.
+            _deser_dangerous_prefixes = ("pickle.", "cPickle.", "yaml.", "marshal.", "shelve.")
+            if func_name in DESER_SINKS or (
+                any(func_name.endswith("." + s.split(".")[-1]) for s in DESER_SINKS)
+                and any(func_name.startswith(p) for p in _deser_dangerous_prefixes)
             ):
-                # Skip safe modules
-                if not func_name.startswith("json.") and not any(func_name.startswith(p) for p in _safe_open_prefixes):
-                    findings.extend(self._check_s12(node, func_name, ctx, rel_path, source_lines))
+                findings.extend(self._check_s12(node, func_name, ctx, rel_path, source_lines))
 
             # S2/S3: File operations
             if func_name in ("open", "builtins.open") or func_name.endswith(".open"):
@@ -373,9 +377,11 @@ class ASTEngine:
         if node.args:
             env_name = _extract_string_value(node.args[0]) or ""
 
-        # Skip non-sensitive env vars
+        # Skip well-known safe/infrastructure env vars
         safe_vars = {"HOME", "PATH", "LANG", "SHELL", "USER", "TERM", "EDITOR",
-                     "LC_ALL", "LC_CTYPE", "PYTHONPATH", "VIRTUAL_ENV", "PWD"}
+                     "LC_ALL", "LC_CTYPE", "PYTHONPATH", "VIRTUAL_ENV", "PWD",
+                     "HOSTNAME", "TZ", "DISPLAY", "XDG_RUNTIME_DIR", "TMPDIR",
+                     "CI", "NODE_ENV", "DEBUG", "LOG_LEVEL", "PORT", "HOST"}
         if env_name.upper() in safe_vars:
             return []
 
@@ -383,20 +389,37 @@ class ASTEngine:
                              "API_KEY", "AWS_", "OPENAI_", "ANTHROPIC_", "DATABASE_URL"]
         is_sensitive = any(p in env_name.upper() for p in sensitive_patterns)
 
+        # Non-sensitive env var reads are INFO level (won't affect scoring)
+        if not is_sensitive:
+            return [Finding(
+                rule_id="S5",
+                engine="ast",
+                layer=Layer.BEHAVIOR,
+                severity=Severity.INFO,
+                confidence=0.8,
+                title=f"Reads environment variable{': ' + env_name if env_name else ''}",
+                description=f"Code reads environment variable via {func_name}()",
+                file_path=rel_path,
+                line=node.lineno,
+                code_snippet=_get_code_snippet(source_lines, node.lineno),
+                evidence=f"Reads env var: {env_name}",
+                tags=["env_var"],
+            )]
+
         return [Finding(
             rule_id="S5",
             engine="ast",
             layer=Layer.BEHAVIOR,
-            severity=Severity.MEDIUM if is_sensitive else Severity.LOW,
+            severity=Severity.MEDIUM,
             confidence=0.8,
-            title=f"Reads environment variable{': ' + env_name if env_name else ''}",
+            title=f"Reads sensitive environment variable: {env_name}",
             description=f"Code reads environment variable via {func_name}()",
             file_path=rel_path,
             line=node.lineno,
             code_snippet=_get_code_snippet(source_lines, node.lineno),
-            evidence=f"Reads {'sensitive ' if is_sensitive else ''}env var: {env_name}",
-            tags=["env_var", "credential_access"] if is_sensitive else ["env_var"],
-            remediation="Ensure this variable is used only for its intended purpose." if is_sensitive else None,
+            evidence=f"Reads sensitive env var: {env_name}",
+            tags=["env_var", "credential_access"],
+            remediation="Ensure this variable is used only for its intended purpose.",
         )]
 
     def _check_s6(self, node: ast.Call, func_name: str, ctx: TaintContext,
@@ -607,8 +630,12 @@ class ASTEngine:
             if not isinstance(node, ast.Call):
                 continue
             func_name = _get_call_name(node)
-            if func_name not in NETWORK_SEND_SINKS and not any(
-                func_name.endswith("." + s.split(".")[-1]) for s in NETWORK_SEND_SINKS
+            # Require known network module prefix for suffix matches (same fix as S4)
+            _send_prefixes = ("requests.", "httpx.", "urllib.", "aiohttp.", "http.client.", "socket.", "grpc.")
+            if func_name not in NETWORK_SEND_SINKS and not (
+                any(func_name.endswith("." + s.split(".")[-1]) for s in NETWORK_SEND_SINKS)
+                and any(func_name.startswith(p) or ("." in func_name and func_name.rsplit(".", 1)[0].endswith(
+                    ("session", "client", "conn", "connection", "sock", "socket", "response"))) for p in _send_prefixes)
             ):
                 continue
 
